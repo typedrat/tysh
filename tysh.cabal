@@ -20,7 +20,7 @@ library tysh-internals
   -- exposed-modules:
   -- other-modules:
   -- other-extensions:
-  build-depends:       base ^>=4.12.0.0
+  build-depends:       base >= 4.9 && < 4.14
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -28,7 +28,7 @@ executable tysh
   main-is:             Main.hs
   -- other-modules:
   -- other-extensions:
-  build-depends:       base ^>=4.12.0.0
+  build-depends:       base >= 4.9 && < 4.14
                      , tysh-internals
   hs-source-dirs:      app
   default-language:    Haskell2010
