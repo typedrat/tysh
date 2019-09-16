@@ -3,7 +3,6 @@ module Shell.Parser
     , blockP
     ) where
 
-import Control.Monad ( foldM )
 import Control.Monad.Combinators.Expr
 import Data.Char ( isAlphaNum, isSpace )
 import Data.Functor ( void, ($>) )
@@ -11,7 +10,7 @@ import qualified Data.Text as T
 import Text.Megaparsec
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
-import System.Posix.IO ( stdInput, stdOutput )
+import System.Posix.IO ( stdOutput )
 import System.Posix.Types ( Fd(..) )
 
 import Shell.Parser.Scan
@@ -103,9 +102,18 @@ command = do
     parts <- cmdParts
     return $ foldr go initial parts
     where
-        go (Redirect r) cmd@Command{ cmdRedirections } = cmd { cmdRedirections = r : cmdRedirections}
-        go Background   cmd                            = cmd { cmdIsBackground = True }
-        go (Atom a)     cmd@Command{ cmdArgs }         = cmd { cmdArgs = a : cmdArgs }
+        errMsg syn = "The impossible happened! Where did a non-command "
+                  ++ "syntactic form come from?\n\t"
+                  ++ show syn
+
+        go (Redirect r) cmd@Command{ cmdRedirections } =
+            cmd { cmdRedirections = r : cmdRedirections}
+        go Background   cmd                            =
+            cmd { cmdIsBackground = True }
+        go (Atom a)     cmd@Command{ cmdArgs }         =
+            cmd { cmdArgs = a : cmdArgs }
+        go _            syn                            =
+            error (errMsg syn)
 
 term :: Parser Syntax
 term = command <|> between (symbol "(") (symbol ")") expr
