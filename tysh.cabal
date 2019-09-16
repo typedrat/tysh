@@ -21,11 +21,12 @@ library tysh-internals
                      , Shell.Parser.Types
   other-modules:       Shell.Evaluator.Spawn
                      , Shell.Parser.Scan
-  build-depends:       base                >= 4.9 && < 5
+  build-depends:       base                >= 4.9       && < 5
                      , text               ^>= 1.2.4.0
                      , bytestring         ^>= 0.10.10.0
                      , containers         ^>= 0.6.0.1
                      , mtl                ^>= 2.2.2
+                     , marshal-contt       >= 0.1.2.1   && < 0.3 
                      , lens               ^>= 4.18
                      , parser-combinators ^>= 1.2.0
                      , megaparsec         ^>= 7.0.5

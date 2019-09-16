@@ -1,19 +1,18 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Shell.Evaluator.Spawn 
     ( FileActions(..)
     , spawn, spawnp
     ) where
 
-import Control.Monad ( foldM )
 import Control.Monad.Cont
 import Data.Bits ( (.|.) )
 import qualified Data.ByteString as BS
-import Data.Functor ( ($>) )
 import qualified Data.Map as M
-import Foreign
 import Foreign.C.Error
-import Foreign.C.String
 import Foreign.C.Types
-import System.Posix.IO
+import Foreign.Marshal.ContT
+import Foreign.Storable
+import System.Posix.IO  ( OpenMode(..), OpenFileFlags(..) )
 import System.Posix.Types
 
 #include <HsUnix.h>
@@ -26,15 +25,10 @@ nullSpawnAttrs = nullPtr
 
 data CFileActions
 
-nullFileActions :: Ptr CFileActions
-nullFileActions = nullPtr
-
-withCFileActions :: (Ptr CFileActions -> IO a) -> IO a
-withCFileActions f = allocaBytes #{size posix_spawn_file_actions_t} $ \ptr -> do
-    cFileActionsInit ptr
-    out <- f ptr
-    cFileActionsDestroy ptr
-    return out
+withCFileActions :: ContT r IO (Ptr CFileActions)
+withCFileActions = bracketContT cFileActionsInit
+                                cFileActionsDestroy
+                                (allocaBytes #{size posix_spawn_file_actions_t})
 
 foreign import ccall "spawn.h posix_spawn_file_actions_init"
     faInitPtr :: Ptr CFileActions -> IO CInt
@@ -101,50 +95,53 @@ deriving instance Show OpenFileFlags
 deriving instance Eq OpenMode
 deriving instance Eq OpenFileFlags
 
-withFileActions :: [FileActions] -> (Ptr CFileActions -> IO a) -> IO a
-withFileActions xs f = withCFileActions $ \ptr -> mapM (go ptr) xs >> f ptr
+withFileActions :: [FileActions] -> ContT r IO (Ptr CFileActions)
+withFileActions [] = return nullPtr
+withFileActions xs = do
+    ptr <- withCFileActions
+    mapM_ (go ptr) xs
+    return ptr
     where
-        go actions OpenFile{..}   = withCString openPath $ \cPath -> 
-            cFileActionsOpen actions openFd cPath openMode openCreatMode openFlags
-        go actions CloseFile{..}  = cFileActionsClose actions closeFd
-        go actions Dup2{..}       = cFileActionsDup2 actions dup2OldFd dup2NewFd
+        go actions OpenFile{..}   = do
+            cPath <- withCString openPath 
+            liftIO $ cFileActionsOpen actions openFd cPath openMode openCreatMode openFlags
+        go actions CloseFile{..}  = liftIO $ cFileActionsClose actions closeFd
+        go actions Dup2{..}       = liftIO $ cFileActionsDup2 actions dup2OldFd dup2NewFd
 
 foreign import ccall "spawn.h posix_spawn"
     posix_spawn :: Ptr ProcessID -> CString -> Ptr CFileActions -> Ptr CSpawnAttrs
                 -> Ptr CString -> Ptr CString -> IO CInt 
-foreign import ccall "spawn.h posix_spawn"
+foreign import ccall "spawn.h posix_spawnp"
     posix_spawnp :: Ptr ProcessID -> CString -> Ptr CFileActions -> Ptr CSpawnAttrs
                  -> Ptr CString -> Ptr CString -> IO CInt
 
 type Argv = [BS.ByteString]
-type Env = [(BS.ByteString, BS.ByteString)]
+type Env  = M.Map BS.ByteString BS.ByteString
 
-marshalBSList :: [BS.ByteString] -> (Ptr CString -> IO a) -> IO a
-marshalBSList bs = runContT $ do
-    as <- traverse (ContT . BS.useAsCString) bs
-    ContT (withArray0 nullPtr as)
+allocStringArrayWith :: [BS.ByteString] -> ContT r IO (Ptr CString)
+allocStringArrayWith xs = allocaArrayWith0' withCString xs nullPtr
 
-marshalEnv :: Env -> (Ptr CString -> IO a) -> IO a
-marshalEnv = marshalBSList . fmap (\(k, v) -> k <> "=" <> v)
+allocStringMapWith :: M.Map BS.ByteString BS.ByteString -> ContT r IO (Ptr CString)
+allocStringMapWith xs = iallocaArrayWith0' (\k v -> withCString (k <> "=" <> v)) xs nullPtr
 
 spawn :: FilePath -> [FileActions] -> Argv -> Env -> IO ProcessID
-spawn path actions argv env =
-    withCString path $ \cPath ->
-        withFileActions actions $ \cActions ->
-            marshalBSList argv $ \cArgv ->
-                marshalEnv env $ \cEnv ->
-                    alloca $ \pidPtr -> do
-                        throwErrnoIfMinus1_ "spawn" $ 
-                            posix_spawn pidPtr cPath cActions nullSpawnAttrs cArgv cEnv
-                        peek pidPtr
+spawn path actions argv env = flip runContT return $ do
+    cPath <- withCString path
+    cActions <- withFileActions actions
+    cArgv <- allocStringArrayWith argv
+    cEnv <- allocStringMapWith env
+    pidPtr <- alloca
+    liftIO . throwErrnoIf_ (/= 0) path $ 
+        posix_spawn pidPtr cPath cActions nullSpawnAttrs cArgv cEnv
+    liftIO $ peek pidPtr
 
 spawnp :: String -> [FileActions] -> Argv -> Env -> IO ProcessID
-spawnp command actions argv env =
-    withCString command $ \cCommand ->
-        withFileActions actions $ \cActions ->
-            marshalBSList argv $ \cArgv ->
-                marshalEnv env $ \cEnv ->
-                    alloca $ \pidPtr -> do
-                        throwErrnoIfMinus1_ "spawn" $ 
-                            posix_spawnp pidPtr cCommand cActions nullSpawnAttrs cArgv cEnv
-                        peek pidPtr
+spawnp command actions argv env = flip runContT return $ do
+    cPath <- withCString command
+    cActions <- withFileActions actions
+    cArgv <- allocStringArrayWith argv
+    cEnv <- allocStringMapWith env
+    pidPtr <- alloca
+    liftIO . throwErrnoIf_ (/= 0) command $ 
+        posix_spawnp pidPtr cPath cActions nullSpawnAttrs cArgv cEnv
+    liftIO $ peek pidPtr
