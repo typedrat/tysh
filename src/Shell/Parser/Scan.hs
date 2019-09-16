@@ -1,15 +1,16 @@
 module Shell.Parser.Scan ( ScanResult(..), scanP, scan1P ) where 
 
-import qualified Data.List.NonEmpty             as NE
-import qualified Data.Set                       as E
-import qualified Data.Text                      as T
-import qualified Data.Text.Array                as TI
-import qualified Data.Text.Internal             as TI
-import qualified Data.Text.Internal.Unsafe.Char as TI
+import qualified Data.List.NonEmpty                as NE
+import qualified Data.Set                          as E
+import qualified Data.Text                         as T
+import qualified Data.Text.Array                   as TI
+import qualified Data.Text.Internal                as TI
+import qualified Data.Text.Internal.Encoding.Utf16 as TI
 
-import Data.Proxy
-import Text.Megaparsec          hiding ( unexpected )
-import Text.Megaparsec.Internal
+import           Data.Char                         ( chr )
+import           Data.Proxy
+import           Text.Megaparsec                   hiding ( unexpected )
+import           Text.Megaparsec.Internal
 
 data ScanResult st = Continue st
                    | Done
@@ -20,12 +21,21 @@ data ScanResult st = Continue st
 scan_ :: (st -> Maybe Char -> ScanResult st) -> st -> T.Text -> (T.Text, T.Text, ScanResult st)
 scan_ p state orig@(TI.Text array offset len) = uglyScan state 0
     where
+        indexChar :: Int -> (Char, Int)
+        indexChar off
+            | TI.validate1 code1 = (chr (fromIntegral code1), 1)
+            | otherwise          = (TI.chr2 code2 code1,      2)
+            where
+                code1 = TI.unsafeIndex array (offset + off)
+                code2 = TI.unsafeIndex array (offset + off + 1)
+
         -- Mucking around with secret internals is merely *ugly*, as opposed to the unalloyed evil of unsafePerformIO
         uglyScan st off
-            | off < len =
-                case p st (Just $ TI.unsafeChr (TI.unsafeIndex array (offset + off))) of
-                    Continue st' | off + 1 == len -> (TI.Text array offset (off + 1), TI.Text array (offset + off + 1) (len - off - 1), p st' Nothing)
-                                 | otherwise      -> uglyScan st' (off + 1)
+            | off < len
+            , let (c, cLen) = indexChar (offset + off) =
+                case p st (Just c) of
+                    Continue st' | off + cLen == len -> (TI.Text array offset (off + cLen), TI.Text array (offset + off + cLen) (len - off - cLen), p st' Nothing)
+                                 | otherwise         -> uglyScan st' (off + cLen)
                     err -> (TI.Text array offset off, TI.Text array (offset + off) (len - off), err)
             | otherwise = (orig, T.empty, p st Nothing)
         
