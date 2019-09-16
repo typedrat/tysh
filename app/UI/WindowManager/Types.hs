@@ -110,7 +110,7 @@ _Minimized = trivialPrism Minimized
 {-# INLINE _Minimized #-}
 
 _Sized :: Prism' WindowSize (Int, Int)
-_Sized = prism' Sized $ \ws -> case ws of
+_Sized = prism' Sized $ \case
             Sized hw -> Just hw
             _        -> Nothing
 {-# INLINE _Sized #-}

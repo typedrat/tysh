@@ -62,6 +62,7 @@ executable tysh
   default-extensions:  FlexibleInstances
                      , FunctionalDependencies
                      , GeneralizedNewtypeDeriving
+                     , LambdaCase
                      , MultiParamTypeClasses
                      , NamedFieldPuns
                      , OverloadedStrings
