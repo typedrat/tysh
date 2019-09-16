@@ -45,9 +45,26 @@ library tysh-internals
 
 executable tysh
   main-is:             Main.hs
-  -- other-modules:
-  -- other-extensions:
-  build-depends:       base >= 4.9 && < 4.14
+  other-modules:       UI.WindowManager.Types
+  ghc-options:         -threaded
+  build-depends:       base             >= 4.9 && < 5
                      , tysh-internals
+                     , text            ^>= 1.2.4.0
+                     , text-icu        ^>= 0.7.0.1
+                     , containers      ^>= 0.6.0.1
+                     , random          ^>= 1.1
+                     , lens            ^>= 4.18
+                     , zippers         ^>= 0.3
+                     , vty             ^>= 5.25.1
+                     , brick           ^>= 0.49
   hs-source-dirs:      app
   default-language:    Haskell2010
+  default-extensions:  FlexibleInstances
+                     , FunctionalDependencies
+                     , GeneralizedNewtypeDeriving
+                     , MultiParamTypeClasses
+                     , NamedFieldPuns
+                     , OverloadedStrings
+                     , RankNTypes
+                     , TypeFamilies
+                     , TypeOperators
