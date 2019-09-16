@@ -8,8 +8,7 @@ import qualified Data.Text.Internal             as TI
 import qualified Data.Text.Internal.Unsafe.Char as TI
 
 import Data.Proxy
-import Debug.Trace
-import Text.Megaparsec
+import Text.Megaparsec          hiding ( unexpected )
 import Text.Megaparsec.Internal
 
 data ScanResult st = Continue st
@@ -47,17 +46,17 @@ scanP ml st f = ParsecT $ \(State input o pst) cok cerr eok eerr -> do
     Continue _ -> error "The impossible happened (scan ended while continuing?)"
     Done | chunkEmpty pxy ts -> eok ts (State input' (o + len) pst) hs
          | otherwise         -> cok ts (State input' (o + len) pst) hs
-    Expected unexp exp | chunkEmpty pxy ts -> eerr errMsg (State input' (o + len) pst)
-                       | otherwise         -> cerr errMsg (State input' (o + len) pst)
+    Expected unexp exp' | chunkEmpty pxy ts -> eerr errMsg (State input' (o + len) pst)
+                        | otherwise         -> cerr errMsg (State input' (o + len) pst)
         where
             unexpected = Just (Tokens (pure unexp))
-            expected = maybe mempty (E.singleton . Label) (NE.nonEmpty exp)
+            expected = maybe mempty (E.singleton . Label) (NE.nonEmpty exp')
             errMsg = TrivialError (o + len) unexpected expected
-    OutOfInput exp | chunkEmpty pxy ts -> eerr errMsg (State input' (o + len) pst)
-                   | otherwise         -> cerr errMsg (State input' (o + len) pst)
+    OutOfInput exp' | chunkEmpty pxy ts -> eerr errMsg (State input' (o + len) pst)
+                    | otherwise         -> cerr errMsg (State input' (o + len) pst)
         where
             unexpected = Just (Label $ NE.fromList "end of input")
-            expected = maybe mempty (E.singleton . Label) (NE.nonEmpty exp)
+            expected = maybe mempty (E.singleton . Label) (NE.nonEmpty exp')
             errMsg = TrivialError (o + len) unexpected expected
 {-# INLINE scanP #-}
 
@@ -85,16 +84,16 @@ scan1P ml st f = ParsecT $ \(State input o pst) cok cerr _ eerr -> do
                     ps    = maybe E.empty E.singleton el
                 in eerr (TrivialError o us ps) (State input o pst)
              | otherwise         -> cok ts (State input' (o + len) pst) hs
-        Expected unexp exp | chunkEmpty pxy ts -> eerr errMsg (State input' (o + len) pst)
-                           | otherwise         -> cerr errMsg (State input' (o + len) pst)
+        Expected unexp exp' | chunkEmpty pxy ts -> eerr errMsg (State input' (o + len) pst)
+                            | otherwise         -> cerr errMsg (State input' (o + len) pst)
             where
                 unexpected = Just (Tokens (pure unexp))
-                expected = maybe mempty (E.singleton . Label) (NE.nonEmpty exp)
+                expected = maybe mempty (E.singleton . Label) (NE.nonEmpty exp')
                 errMsg = TrivialError (o + len) unexpected expected
-        OutOfInput exp | chunkEmpty pxy ts -> eerr errMsg (State input' (o + len) pst)
-                       | otherwise         -> cerr errMsg (State input' (o + len) pst)
+        OutOfInput exp' | chunkEmpty pxy ts -> eerr errMsg (State input' (o + len) pst)
+                        | otherwise         -> cerr errMsg (State input' (o + len) pst)
             where
                 unexpected = Just (Label $ NE.fromList "end of input")
-                expected = maybe mempty (E.singleton . Label) (NE.nonEmpty exp)
+                expected = maybe mempty (E.singleton . Label) (NE.nonEmpty exp')
                 errMsg = TrivialError (o + len) unexpected expected
 {-# INLINE scan1P #-}
