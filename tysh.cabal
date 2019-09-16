@@ -21,7 +21,7 @@ library tysh-internals
                      , Shell.Parser.Types
   other-modules:       Shell.Evaluator.Spawn
                      , Shell.Parser.Scan
-  build-depends:       base >= 4.9 && < 4.14
+  build-depends:       base                >= 4.9 && < 5
                      , text               ^>= 1.2.4.0
                      , bytestring         ^>= 0.10.10.0
                      , containers         ^>= 0.6.0.1
