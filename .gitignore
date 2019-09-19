@@ -21,3 +21,4 @@ cabal.project.local~
 .HTF/
 .ghc.environment.*
 .vscode/
+.code-workspace.code-workspace
